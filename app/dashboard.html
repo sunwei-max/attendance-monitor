@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>腾讯会议实时出勤监控</title>
+<style>
+:root{
+  --green:#10b981;--red:#ef4444;--amber:#f59e0b;
+  --bg:#eef2f7;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e7ecf3;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:linear-gradient(180deg,#f6f8fb,#eef2f7);color:var(--ink);padding:24px;}
+.wrap{max-width:1100px;margin:0 auto}
+.head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+.pills{display:flex;gap:10px;flex-wrap:wrap;align-items:center;max-width:100%}
+@media (max-width:560px){
+  .head{flex-direction:column;align-items:stretch;gap:10px}
+  .pills{justify-content:flex-start}
+  .pill{font-size:12px;padding:6px 11px}
+}
+h1{font-size:23px;margin:0;letter-spacing:.5px}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 14px;
+  font-size:13px;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.04);white-space:nowrap}
+.pill b{color:var(--green)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
+.card{background:var(--card);border-radius:16px;padding:18px 16px;box-shadow:0 2px 6px rgba(15,23,42,.06);
+  text-align:center;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--muted)}
+.card.g::before{background:var(--green)} .card.r::before{background:var(--red)}
+.card.rate::before{background:linear-gradient(var(--green),var(--amber))}
+.card .num{font-size:34px;font-weight:800;line-height:1}
+.card .lbl{color:var(--muted);font-size:13px;margin-top:6px}
+.card.g .num{color:var(--green)} .card.r .num{color:var(--red)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.btn{background:var(--ink);color:#fff;border:none;border-radius:11px;padding:11px 18px;font-size:14px;
+  cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:7px;transition:.12s}
+.btn:hover{opacity:.92} .btn:active{transform:translateY(1px)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost.on{background:var(--amber);color:#fff;border-color:var(--amber)}
+.errbox{background:#fff7ed;border:1px solid #fed7aa;border-left:5px solid var(--amber);
+  color:#92400e;border-radius:12px;padding:13px 16px;font-size:14px;line-height:1.65;margin-bottom:16px}
+.errbox b{display:block;margin-bottom:3px;font-size:15px;color:#b45309}
+.absent-banner{background:#fef2f2;border:1px solid #fecaca;border-left:5px solid var(--red);
+  color:#b91c1c;border-radius:12px;padding:13px 16px;font-size:14px;line-height:1.6;margin-bottom:16px}
+.absent-banner b{font-size:15px}
+.absent-banner .names{margin-top:5px;font-weight:600;font-size:15px;word-break:break-all}
+.btn.copied{background:var(--green)}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
+.panel{background:var(--card);border-radius:16px;padding:18px;box-shadow:0 2px 6px rgba(15,23,42,.06)}
+.panel h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.list-scroll{max-height:340px;overflow:auto;border-radius:10px}
+.chart-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:12px;background:#fafbfc;position:sticky;top:0}
+tr:last-child td{border-bottom:none}
+td.name{font-weight:600}
+tr.absent td.name{color:var(--red)}
+tr.ok td.name{color:var(--green)}
+tr.warn td.name{color:var(--amber)}
+.dur{display:inline-block;padding:2px 9px;border-radius:999px;background:#ecfdf5;color:var(--green);font-size:12px;font-weight:600}
+.dur.warn{background:#fff7ed;color:var(--amber)}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.b-absent{background:#fee2e2;color:var(--red)} .b-ok{background:#d1fae5;color:var(--green)} .b-warn{background:#fef3c7;color:var(--amber)}
+.empty{color:var(--muted);padding:14px 0;text-align:center}
+.mini{font-size:12px;padding:3px 11px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;font-weight:600;white-space:nowrap}
+.mini.leave{background:#fef3c7;color:#b45309;border-color:#fde68a}
+.col-act{width:1%;white-space:nowrap;text-align:center}
+.foot{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
+#countdown{font-weight:700;color:var(--ink)}
+@media (max-width:768px){
+  body{padding:12px}
+  h1{font-size:19px}
+  .cards{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+  .card{padding:13px 8px;border-radius:13px} .card .num{font-size:27px}
+  .card .lbl{font-size:11px}
+  .grid{grid-template-columns:1fr;gap:12px}
+  table{font-size:13px} th,td{padding:8px 7px}
+  .pill{font-size:12px;padding:6px 11px}
+  .list-scroll{max-height:300px}
+  .col-sid{display:none}
+  .toolbar{gap:8px}
+  .toolbar .btn{flex:1;justify-content:center;padding:12px 10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>腾讯会议实时出勤监控</h1>
+      <div class="sub" id="meetingLabel">会议：—</div>
+    </div>
+      <div class="pills">
+        <div class="pill">⏱ 会议已进行 <b id="meetingElapsed">—</b></div>
+        <div class="pill">🕒 最近刷新 <span id="lastUpdate">—</span></div>
+      </div>
+  </div>
+
+  <div id="errBox" class="errbox" style="display:none"></div>
+
+  <div class="absent-banner" id="absentBanner" style="display:none"></div>
+
+  <div class="cards">
+    <div class="card"><div class="num" id="cTotal">–</div><div class="lbl">应到</div></div>
+    <div class="card g"><div class="num" id="cOnline">–</div><div class="lbl">在线</div></div>
+    <div class="card r"><div class="num" id="cAbsent">–</div><div class="lbl">缺席 / 掉线</div></div>
+    <div class="card rate"><div class="num" id="cRate">–</div><div class="lbl">出勤率</div></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn" id="copyBtn" onclick="copyResult()">📋 复制考勤结果</button>
+    <button class="btn ghost" id="refreshBtn" onclick="manualRefresh()">🔄 刷新数据</button>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>出勤占比</h2>
+      <div class="chart-wrap">
+        <svg id="ring" width="220" height="220" viewBox="0 0 220 220"></svg>
+        <div id="ringText" style="font-size:22px;font-weight:800"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="panel">
+        <h2>缺席 / 掉线名单 <span class="badge b-absent" id="absentCount">0</span> <span class="badge b-warn" id="leaveCount" style="display:none">请假 0</span></h2>
+        <div class="list-scroll">
+        <table><thead><tr><th>姓名</th><th class="col-sid">学号 / 编号</th><th class="col-act">操作</th></tr></thead>
+          <tbody id="absentBody"></tbody></table>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>在线名单 <span class="badge b-ok" id="onlineCount">0</span></h2>
+        <div class="list-scroll">
+        <table><thead><tr><th>姓名</th><th class="col-sid">学号</th><th>在线时长</th></tr></thead>
+          <tbody id="onlineBody"></tbody></table>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>昵称无法匹配（需人工核对） <span class="badge b-warn" id="warnCount">0</span></h2>
+        <div class="list-scroll">
+        <table><tbody id="warnBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span id="autoStatus">自动刷新：已关闭 · 点🔄手动刷新</span></div>
+</div>
+
+<script>
+const RING_R=80, CX=110, CY=110, C=2*Math.PI*RING_R;
+const LEAVE_TTL = 6*3600*1000;     // 请假标记有效期：6 小时
+const LEAVE_KEY = 'att_leave_v1';  // localStorage 持久化键
+let leaveMap = new Map();          // name -> 标记时间戳(ms)
+
+function loadLeave(){
+  try{
+    const raw=localStorage.getItem(LEAVE_KEY);
+    if(!raw) return;
+    const obj=JSON.parse(raw); const now=Date.now();
+    for(const [k,v] of Object.entries(obj)){ if(now-v < LEAVE_TTL) leaveMap.set(k, v); }
+  }catch(e){}
+}
+function saveLeave(){
+  try{
+    const obj={}; for(const [k,v] of leaveMap) obj[k]=v;
+    localStorage.setItem(LEAVE_KEY, JSON.stringify(obj));
+  }catch(e){}
+}
+function cleanExpired(){
+  const now=Date.now(); let changed=false;
+  for(const [k,v] of leaveMap){ if(now-v >= LEAVE_TTL){ leaveMap.delete(k); changed=true; } }
+  return changed;
+}
+function isLeave(name){
+  const t=leaveMap.get(name);
+  return t!=null && (Date.now()-t < LEAVE_TTL);
+}
+function fmtDur(secs){
+  secs=Math.max(0,Math.floor(secs||0));
+  const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+  if(h>0) return h+'时'+(m<10?'0':'')+m+'分';
+  if(m>0) return m+'分'+(s<10?'0':'')+s+'秒';
+  return s+'秒';
+}
+function fmtClock(secs){
+  secs=Math.max(0,Math.floor(secs||0));
+  const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+  return (h>0?h+':':'')+(h>0?(m<10?'0':'')+m:m)+':'+(s<10?'0':'')+s;
+}
+function setRing(pct){
+  const svg=document.getElementById('ring');
+  const off=C*(1-pct/100);
+  const color = pct>=95 ? '#10b981' : (pct>=80 ? '#f59e0b' : '#ef4444');
+  svg.innerHTML=`<circle cx="${CX}" cy="${CY}" r="${RING_R}" fill="none" stroke="#eef2f7" stroke-width="22"/>
+    <circle cx="${CX}" cy="${CY}" r="${RING_R}" fill="none" stroke="${color}" stroke-width="22"
+      stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 ${CX} ${CY})"/>`;
+  document.getElementById('ringText').textContent=pct.toFixed(1)+'%';
+  document.getElementById('ringText').style.color=color;
+}
+function onlineSecs(joinIso){
+  if(!joinIso) return null;
+  const d=new Date(joinIso); if(isNaN(d)) return null;
+  return (Date.now()-d.getTime())/1000;
+}
+function rowPresent(r){
+  const secs=onlineSecs(r.join_time);
+  const dur = secs==null? '<span class="dur warn">—</span>'
+    : `<span class="dur" data-join="${r.join_time}">${fmtDur(secs)}</span>`;
+  return `<tr class="ok"><td class="name">${r.name||''}</td><td class="col-sid">${r.sid||''}</td><td>${dur}</td></tr>`;
+}
+function rowAbsent(r){
+  const lv=isLeave(r.name);
+  const cls = lv ? 'warn' : 'absent';
+  const btn = lv
+    ? `<button class="mini leave" onclick="toggleLeave('${r.name}')">取消请假</button>`
+    : `<button class="mini" onclick="toggleLeave('${r.name}')">标记请假</button>`;
+  return `<tr class="${cls}"><td class="name">${r.name||''}</td><td class="col-sid">${r.sid||''}</td><td class="col-act">${btn}</td></tr>`;
+}
+function toggleLeave(name){
+  if(isLeave(name)) leaveMap.delete(name); else leaveMap.set(name, Date.now());
+  saveLeave();
+  renderAbsent();
+}
+function renderAbsent(){
+  const d=window.lastSnap; if(!d) return;
+  if(cleanExpired()) saveLeave();
+  const absentRaw=d.absent||[];
+  const trueAbsent = absentRaw.filter(x=>!isLeave(x.name));
+  const leave = absentRaw.filter(x=>isLeave(x.name));
+  document.getElementById('absentBody').innerHTML = absentRaw.length
+    ? absentRaw.map(rowAbsent).join('')
+    : '<tr><td colspan="3" class="empty">✅ 全员在线</td></tr>';
+  document.getElementById('absentCount').textContent=trueAbsent.length;
+  const lc=document.getElementById('leaveCount');
+  if(leave.length){ lc.style.display='inline-block'; lc.textContent='请假 '+leave.length; }
+  else lc.style.display='none';
+  const banner=document.getElementById('absentBanner');
+  if(trueAbsent.length){
+    banner.style.display='block';
+    banner.innerHTML='<b>⚠️ 当前 '+trueAbsent.length+' 人缺席 / 掉线</b><div class="names">'+trueAbsent.map(x=>x.name).join('、')+'</div>';
+  }else{
+    banner.style.display='none';
+  }
+  document.getElementById('cAbsent').textContent=trueAbsent.length;
+}
+
+function showErr(msg){
+  const b=document.getElementById('errBox');
+  b.style.background='#fff7ed'; b.style.borderColor='#fed7aa'; b.style.borderLeftColor='var(--amber)'; b.style.color='#92400e';
+  b.innerHTML='<b>⚠️ 暂时取不到考勤数据</b>'+msg;
+  b.style.display='block';
+}
+function showNotice(msg){
+  const b=document.getElementById('errBox');
+  b.style.background='#eff6ff'; b.style.borderColor='#bfdbfe'; b.style.borderLeftColor='#3b82f6'; b.style.color='#1e40af';
+  b.innerHTML='<b>ℹ️ 额度保护提示</b>'+msg;
+  b.style.display='block';
+}
+async function refresh(src='manual'){
+  try{
+    const d=await (await fetch('/api/snapshot?src='+encodeURIComponent(src), {cache:'no-store'})).json();
+    if(d.error){showErr(d.error);scheduleAuto(d);updateAutoStatus(d);return;}
+    if(d.notice){showNotice(d.notice);scheduleAuto(d);updateAutoStatus(d);return;}
+    document.getElementById('errBox').style.display='none';
+    const total=d.total||0, online=(d.present||[]).length;
+    const rate=total?(online/total*100):0;
+    document.getElementById('cTotal').textContent=total;
+    document.getElementById('cOnline').textContent=online;
+    document.getElementById('cRate').textContent=rate.toFixed(1)+'%';
+    setRing(rate);
+    document.getElementById('meetingLabel').textContent='会议：'+(d.label||'—')+(d.demo?'（演示数据）':'');
+    document.getElementById('onlineCount').textContent=online;
+    document.getElementById('onlineBody').innerHTML = online? d.present.map(rowPresent).join('') : '<tr><td colspan="3" class="empty">暂无</td></tr>';
+    const warn=d.unmatched||[];
+    document.getElementById('warnCount').textContent=warn.length;
+    document.getElementById('warnBody').innerHTML = warn.length? warn.map(n=>`<tr class="warn"><td colspan="2">${n}</td></tr>`).join('') : '<tr><td colspan="2" class="empty">无</td></tr>';
+    document.getElementById('lastUpdate').textContent=d.updated||'—';
+    window.lastSnap=d; window.meetingStart=d.meeting_start;
+    // 清理已到会的请假标记（到会即不再算请假），再渲染
+    const curAbsent=new Set((d.absent||[]).map(x=>x.name));
+    [...leaveMap.keys()].forEach(n=>{ if(!curAbsent.has(n)) leaveMap.delete(n); });
+    saveLeave();
+    renderAbsent();
+    scheduleAuto(d); updateAutoStatus(d);
+  }catch(e){}
+}
+function formatResult(){
+  const d=window.lastSnap; if(!d) return '暂无数据';
+  const total=d.total||0;
+  const present=(d.present||[]).length;
+  const absentRaw=(d.absent||[]);
+  const trueAbsent=absentRaw.filter(x=>!isLeave(x.name));
+  const leave=absentRaw.filter(x=>isLeave(x.name));
+  const head='应到'+total+'人，实到'+present+'人，缺席'+trueAbsent.length+'人';
+  const tail=d.updated?('（统计时间：'+d.updated+'）'):'';
+  const parts=[head];
+  if(trueAbsent.length) parts.push('缺席：'+trueAbsent.map(x=>x.name).join('、'));
+  if(leave.length) parts.push('请假：'+leave.map(x=>x.name).join('、'));
+  if(!trueAbsent.length && !leave.length) parts.push('✅ 全员在线');
+  return parts.join('，')+tail;
+}
+async function copyResult(){
+  const text=formatResult();
+  const btn=document.getElementById('copyBtn');
+  try{
+    await navigator.clipboard.writeText(text);
+    btn.textContent='✅ 已复制'; btn.classList.add('copied');
+  }catch(e){
+    const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{document.execCommand('copy'); btn.textContent='✅ 已复制'; btn.classList.add('copied');}catch(_){alert('复制失败，请手动复制：\n\n'+text);}
+    document.body.removeChild(ta);
+  }
+  setTimeout(()=>{btn.textContent='📋 复制考勤结果'; btn.classList.remove('copied');},1500);
+}
+// 在线时长 / 会议时长 每秒滴答
+setInterval(()=>{
+  document.querySelectorAll('.dur[data-join]').forEach(el=>{
+    const s=onlineSecs(el.dataset.join); if(s!=null) el.textContent=fmtDur(s);
+  });
+  if(window.meetingStart){
+    const ms=onlineSecs(window.meetingStart);
+    document.getElementById('meetingElapsed').textContent=ms!=null?fmtClock(ms):'—';
+  }
+},1000);
+// 每分钟检查一次请假标记是否过期（超过 6 小时自动失效）
+setInterval(()=>{
+  if(cleanExpired()){ saveLeave(); renderAbsent(); }
+}, 60000);
+let autoTimer=null;
+function msToNextHalfHour(){
+  const now=Date.now(); const d=new Date(now);
+  const m=d.getMinutes(), s=d.getSeconds(), ms=d.getMilliseconds();
+  const addMin=(m<30)?(30-m):(60-m);
+  return (addMin*60 - s)*1000 - ms;
+}
+function fmtNext(ts){
+  const d=new Date(ts);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function scheduleAuto(d){
+  clearTimeout(autoTimer);
+  if(!d || !d.quota || d.quota.auto_status!=='auto') return;   // 非自动模式不排程
+  const iv=(d.auto_interval||1800)*1000;
+  let delay=iv;
+  if(iv>=1800000) delay=msToNextHalfHour();   // 默认对齐整点/半点
+  autoTimer=setTimeout(async()=>{ await refresh('auto'); }, Math.max(2000,delay));
+}
+function updateAutoStatus(d){
+  const q=d.quota; if(!q) return;
+  const el=document.getElementById('autoStatus');
+  const iv=(d.auto_interval||1800)/60;
+  if(q.auto_status==='locked') el.textContent='自动刷新已锁定（额度耗尽）';
+  else if(q.auto_status==='auto_disabled_quota') el.textContent='自动刷新已暂停（额度偏低），请手动刷新';
+  else if(q.auto_status==='off_config') el.textContent='自动刷新已关闭 · 点🔄手动刷新';
+  else { const next=Date.now()+ ((d.auto_interval||1800)>=1800? msToNextHalfHour() : (d.auto_interval||1800)*1000);
+         el.textContent='自动刷新中：每'+(iv>=30?'30分(整点半点)':iv+'分')+'，下次 '+fmtNext(next); }
+}
+async function manualRefresh(){
+  const b=document.getElementById('refreshBtn');
+  b.disabled=true; b.textContent='⏳ 刷新中…';
+  try{ await refresh('manual'); }
+  finally{ b.disabled=false; b.textContent='🔄 刷新数据'; }
+}
+// 首屏：载入本地持久化的请假标记，清理过期项，再拉一次数据
+loadLeave(); cleanExpired(); saveLeave();
+refresh('open');
+</script>
+</body>
+</html>
