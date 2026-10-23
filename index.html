@@ -270,6 +270,16 @@ function showErr(msg){
   b.innerHTML='<b>⚠️ 暂时取不到考勤数据</b>'+msg;
   b.style.display='block';
 }
+function showStaticTip(d){
+  const b=document.getElementById('errBox');
+  const t=(d&&d.generated_at)?d.generated_at.slice(5,16):'—';
+  b.style.background='#eff6ff'; b.style.borderColor='#bfdbfe'; b.style.borderLeftColor='#3b82f6'; b.style.color='#1e40af';
+  b.innerHTML='<b>🕒 本页是静态快照，不会自动更新</b>'
+    +'<div style="margin-top:6px;line-height:1.7">最近采集：'+t
+    +'　·　要看<b>实时</b>考勤：<a href="https://aaa3364b1255991c1.app.workbuddy.host" target="_blank" '
+    +'style="color:#1d4ed8;font-weight:800;text-decoration:underline">点此打开实时版</a>（微信里会提示在浏览器打开）</div>';
+  b.style.display='block';
+}
 function showNotice(msg){
   const b=document.getElementById('errBox');
   b.style.background='#eff6ff'; b.style.borderColor='#bfdbfe'; b.style.borderLeftColor='#3b82f6'; b.style.color='#1e40af';
@@ -301,13 +311,14 @@ async function refresh(src='manual'){
     const warn=d.unmatched||[];
     document.getElementById('warnCount').textContent=warn.length;
     document.getElementById('warnBody').innerHTML = warn.length? warn.map(n=>`<tr class="warn"><td colspan="2">${n}</td></tr>`).join('') : '<tr><td colspan="2" class="empty">无</td></tr>';
-    document.getElementById('lastUpdate').textContent=d.updated||'—';
+    document.getElementById('lastUpdate').textContent=d.generated_at? d.generated_at.slice(5,16) : (d.updated||'—');
     window.lastSnap=d; window.meetingStart=d.meeting_start;
     // 清理已到会的请假标记（到会即不再算请假），再渲染
     const curAbsent=new Set((d.absent||[]).map(x=>x.name));
     [...leaveMap.keys()].forEach(n=>{ if(!curAbsent.has(n)) leaveMap.delete(n); });
     saveLeave();
     renderAbsent();
+    showStaticTip(d);
     updateFooter(d);
   }catch(e){
     showErr('（读取数据失败：'+e.message+'。刚更新过页面时可能还在部署，稍等片刻再点刷新。）');
@@ -368,7 +379,7 @@ function scheduleAuto(d){
 function updateFooter(d){
   const el=document.getElementById('autoStatus');
   const t = d && d.generated_at ? d.generated_at.slice(5,16) : '—';
-  el.textContent='数据采集：上课时段每 10 分钟自动更新（最近 '+t+'）';
+  el.textContent='静态快照（最近采集 '+t+'）· 需要实时数据请用浏览器打开 workbuddy 链接';
 }
 function updateAutoStatus(d){ updateFooter(d); }
 async function manualRefresh(){
@@ -377,8 +388,9 @@ async function manualRefresh(){
   try{ await refresh('manual'); }
   finally{ b.disabled=false; b.textContent='🔄 刷新数据'; }
 }
-// 首屏：载入本地持久化的请假标记，清理过期项，再拉一次数据
+// 首屏：载入本地持久化的请假标记，清理过期项，再读一次快照
 loadLeave(); cleanExpired(); saveLeave();
+showStaticTip(null);
 refresh('open');
 </script>
 </body>
