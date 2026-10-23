@@ -96,7 +96,7 @@ tr.warn td.name{color:var(--amber)}
     </div>
       <div class="pills">
         <div class="pill">⏱ 会议已进行 <b id="meetingElapsed">—</b></div>
-        <div class="pill">🕒 最近刷新 <span id="lastUpdate">—</span></div>
+        <div class="pill">🕒 数据时间 <span id="lastUpdate">—</span></div>
       </div>
   </div>
 
@@ -148,12 +148,13 @@ tr.warn td.name{color:var(--amber)}
     </div>
   </div>
 
-  <div class="foot"><span id="autoStatus">自动刷新：已关闭 · 点🔄手动刷新</span></div>
+  <div class="foot"><span id="autoStatus">数据采集：上课时段每 10 分钟自动更新</span></div>
 </div>
 
 <script>
-// 考勤数据接口（部署在 workbuddy，本页静态托管于 GitHub Pages，跨域静默调用）
-const API_BASE = 'https://aaa3364b1255991c1.app.workbuddy.host';
+// 考勤数据来源：同域静态快照（由 GitHub Actions 在校时段每 10 分钟生成）
+// 同域读取 → 无跨域、无微信 UA 拦截，微信内可直接打开
+const DATA_URL = 'data/latest.json';
 const RING_R=80, CX=110, CY=110, C=2*Math.PI*RING_R;
 const LEAVE_TTL = 6*3600*1000;     // 请假标记有效期：6 小时
 const LEAVE_KEY = 'att_leave_v1';  // localStorage 持久化键
@@ -194,8 +195,14 @@ function fmtClock(secs){
   const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
   return (h>0?h+':':'')+(h>0?(m<10?'0':'')+m:m)+':'+(s<10?'0':'')+s;
 }
-function setRing(pct){
+function setRing(pct, empty){
   const svg=document.getElementById('ring');
+  if(empty){
+    svg.innerHTML=`<circle cx="${CX}" cy="${CY}" r="${RING_R}" fill="none" stroke="#eef2f7" stroke-width="22"/>`;
+    document.getElementById('ringText').textContent='—';
+    document.getElementById('ringText').style.color='#94a3b8';
+    return;
+  }
   const off=C*(1-pct/100);
   const color = pct>=95 ? '#10b981' : (pct>=80 ? '#f59e0b' : '#ef4444');
   svg.innerHTML=`<circle cx="${CX}" cy="${CY}" r="${RING_R}" fill="none" stroke="#eef2f7" stroke-width="22"/>
@@ -231,24 +238,30 @@ function toggleLeave(name){
 function renderAbsent(){
   const d=window.lastSnap; if(!d) return;
   if(cleanExpired()) saveLeave();
-  const absentRaw=d.absent||[];
+  const inactive = (d.meeting_active === false);
+  const absentRaw = inactive ? [] : (d.absent||[]);
   const trueAbsent = absentRaw.filter(x=>!isLeave(x.name));
   const leave = absentRaw.filter(x=>isLeave(x.name));
   document.getElementById('absentBody').innerHTML = absentRaw.length
     ? absentRaw.map(rowAbsent).join('')
-    : '<tr><td colspan="3" class="empty">✅ 全员在线</td></tr>';
+    : '<tr><td colspan="3" class="empty">'+(inactive?'暂无（当前无人在会）':'✅ 全员在线')+'</td></tr>';
   document.getElementById('absentCount').textContent=trueAbsent.length;
   const lc=document.getElementById('leaveCount');
   if(leave.length){ lc.style.display='inline-block'; lc.textContent='请假 '+leave.length; }
   else lc.style.display='none';
   const banner=document.getElementById('absentBanner');
+  banner.style.background=''; banner.style.borderLeftColor='';
   if(trueAbsent.length){
     banner.style.display='block';
     banner.innerHTML='<b>⚠️ 当前 '+trueAbsent.length+' 人缺席 / 掉线</b><div class="names">'+trueAbsent.map(x=>x.name).join('、')+'</div>';
+  }else if(inactive){
+    banner.style.display='block';
+    banner.style.background='#f1f5f9'; banner.style.borderLeftColor='#94a3b8';
+    banner.innerHTML='<b>ℹ️ 当前没有人在会议中</b><div class="names">可能会议未开始或已散会。开会后约 10 分钟内会自动更新。</div>';
   }else{
     banner.style.display='none';
   }
-  document.getElementById('cAbsent').textContent=trueAbsent.length;
+  document.getElementById('cAbsent').textContent= inactive ? '–' : trueAbsent.length;
 }
 
 function showErr(msg){
@@ -263,19 +276,26 @@ function showNotice(msg){
   b.innerHTML='<b>ℹ️ 额度保护提示</b>'+msg;
   b.style.display='block';
 }
+let lastGenTs = 0;
 async function refresh(src='manual'){
   try{
-    const d=await (await fetch(API_BASE+'/api/snapshot?src='+encodeURIComponent(src), {cache:'no-store'})).json();
-    if(d.error){showErr(d.error);scheduleAuto(d);updateAutoStatus(d);return;}
-    if(d.notice){showNotice(d.notice);scheduleAuto(d);updateAutoStatus(d);return;}
+    const r = await fetch(DATA_URL + '?v=' + Date.now(), {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    if(d.error){
+      showErr('（上游采集失败：'+d.error+'）'+(d.generated_at?('　采集时间 '+d.generated_at):''));
+      updateFooter(d);
+      return;
+    }
     document.getElementById('errBox').style.display='none';
+    const inactive = (d.meeting_active === false);
     const total=d.total||0, online=(d.present||[]).length;
     const rate=total?(online/total*100):0;
     document.getElementById('cTotal').textContent=total;
     document.getElementById('cOnline').textContent=online;
-    document.getElementById('cRate').textContent=rate.toFixed(1)+'%';
-    setRing(rate);
-    document.getElementById('meetingLabel').textContent='会议：'+(d.label||'—')+(d.demo?'（演示数据）':'');
+    document.getElementById('cRate').textContent= inactive ? '–' : rate.toFixed(1)+'%';
+    setRing(rate, inactive);
+    document.getElementById('meetingLabel').textContent='会议：'+(d.label||'—');
     document.getElementById('onlineCount').textContent=online;
     document.getElementById('onlineBody').innerHTML = online? d.present.map(rowPresent).join('') : '<tr><td colspan="3" class="empty">暂无</td></tr>';
     const warn=d.unmatched||[];
@@ -288,13 +308,16 @@ async function refresh(src='manual'){
     [...leaveMap.keys()].forEach(n=>{ if(!curAbsent.has(n)) leaveMap.delete(n); });
     saveLeave();
     renderAbsent();
-    scheduleAuto(d); updateAutoStatus(d);
+    updateFooter(d);
   }catch(e){
-    showErr('（网络异常，可能无法跨域访问接口。可改用 workbuddy 链接，或点右上角「…」在浏览器打开本页。）');
+    showErr('（读取数据失败：'+e.message+'。刚更新过页面时可能还在部署，稍等片刻再点刷新。）');
   }
 }
 function formatResult(){
   const d=window.lastSnap; if(!d) return '暂无数据';
+  if(d.meeting_active===false){
+    return '当前未检测到在线人员（会议未开始或已散会）'+(d.updated?('（统计时间：'+d.updated+'）'):'');
+  }
   const total=d.total||0;
   const present=(d.present||[]).length;
   const absentRaw=(d.absent||[]);
@@ -337,34 +360,17 @@ setInterval(()=>{
   if(cleanExpired()){ saveLeave(); renderAbsent(); }
 }, 60000);
 let autoTimer=null;
-function msToNextHalfHour(){
-  const now=Date.now(); const d=new Date(now);
-  const m=d.getMinutes(), s=d.getSeconds(), ms=d.getMilliseconds();
-  const addMin=(m<30)?(30-m):(60-m);
-  return (addMin*60 - s)*1000 - ms;
-}
-function fmtNext(ts){
-  const d=new Date(ts);
-  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-}
 function scheduleAuto(d){
+  // 静态快照：页面内每分钟重读一次同域 JSON，自动跟上下一次采集（几乎零成本）
   clearTimeout(autoTimer);
-  if(!d || !d.quota || d.quota.auto_status!=='auto') return;
-  const iv=(d.auto_interval||1800)*1000;
-  let delay=iv;
-  if(iv>=1800000) delay=msToNextHalfHour();
-  autoTimer=setTimeout(async()=>{ await refresh('auto'); }, Math.max(2000,delay));
+  autoTimer=setTimeout(()=>refresh('auto'), 60000);
 }
-function updateAutoStatus(d){
-  const q=d.quota; if(!q) return;
+function updateFooter(d){
   const el=document.getElementById('autoStatus');
-  const iv=(d.auto_interval||1800)/60;
-  if(q.auto_status==='locked') el.textContent='自动刷新已锁定（额度耗尽）';
-  else if(q.auto_status==='auto_disabled_quota') el.textContent='自动刷新已暂停（额度偏低），请手动刷新';
-  else if(q.auto_status==='off_config') el.textContent='自动刷新已关闭 · 点🔄手动刷新';
-  else { const next=Date.now()+ ((d.auto_interval||1800)>=1800? msToNextHalfHour() : (d.auto_interval||1800)*1000);
-         el.textContent='自动刷新中：每'+(iv>=30?'30分(整点半点)':iv+'分')+'，下次 '+fmtNext(next); }
+  const t = d && d.generated_at ? d.generated_at.slice(5,16) : '—';
+  el.textContent='数据采集：上课时段每 10 分钟自动更新（最近 '+t+'）';
 }
+function updateAutoStatus(d){ updateFooter(d); }
 async function manualRefresh(){
   const b=document.getElementById('refreshBtn');
   b.disabled=true; b.textContent='⏳ 刷新中…';
