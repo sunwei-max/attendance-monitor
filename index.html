@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>高三16班腾讯会议考勤监控</title>
+<style>
+  body{font-family:-apple-system,"PingFang SC",sans-serif;max-width:640px;margin:0 auto;padding:24px 18px;color:#1f2937;line-height:1.7}
+  h1{font-size:22px;margin:0 0 8px}
+  .tip{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:12px 14px;border-radius:10px;font-size:14px;margin:16px 0}
+  .card{display:block;text-decoration:none;color:#fff;background:#2563eb;padding:14px 16px;border-radius:12px;margin:12px 0;font-weight:600;text-align:center}
+  .card.g{background:#24292f}
+  .card.w{background:#059669}
+  ul{font-size:14px;padding-left:20px}
+  code{background:#f3f4f6;padding:1px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+  <h1>高三16班腾讯会议考勤监控</h1>
+  <p>用腾讯会议 API 自动比对班级花名册，实时显示在线 / 缺席名单，支持复制考勤通报、标记请假。</p>
+
+  <div class="tip">
+    ⚠️ 本页托管于 GitHub Pages（<b>纯静态</b>），<b>不能实时考勤</b>——实时拉取需要后端服务。<br>
+    看实时考勤请点下面「打开考勤网页」，在<b>手机浏览器</b>中打开；若微信拦截，点右上角「…」→「在浏览器打开」即可。
+  </div>
+
+  <a class="card w" href="https://aaa3364b1255991c1.app.workbuddy.host">🟢 打开考勤网页（完整功能，建议用浏览器）</a>
+  <a class="card" href="https://github.com/sunwei-max/attendance-monitor">📦 查看源码仓库</a>
+  <a class="card g" href="https://github.com/sunwei-max/attendance-monitor/blob/main/%E9%AB%98%E4%B8%8916%E7%8F%AD%E8%85%BE%E8%AE%AF%E4%BC%9A%E8%AE%AE%E8%80%83%E5%8B%A4%E7%9B%91%E6%8E%A7_%E5%A4%8D%E5%88%BB%E6%8C%87%E5%8D%97.md">📘 复刻指南</a>
+
+  <h3>功能一览</h3>
+  <ul>
+    <li>实时在线 / 缺席 / 待核对名单 + 出勤率</li>
+    <li>一键复制考勤通报（应到/实到/缺席 + 名单 + 时间）</li>
+    <li>缺席学生可标记请假（6 小时有效，上线自动清除）</li>
+    <li>三级额度保护，纯手动刷新，额度几乎用不完</li>
+    <li>额度耗尽时可用会议导出 xlsx 离线分析</li>
+  </ul>
+
+  <p style="font-size:13px;color:#6b7280">部署：FastAPI 后端 + 腾讯会议开放平台 MCP。本静态页仅作入口与说明。</p>
+</body>
+</html>
