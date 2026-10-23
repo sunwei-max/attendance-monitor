@@ -1,0 +1,13 @@
+#!/bin/bash
+# 这是脱敏示例文件。复制为 start.sh 并填入你自己的 Token 后再运行。
+# 真实 start.sh 已被 .gitignore 排除，不会进入版本库。
+export TENCENT_MEETING_TOKEN='你的token'
+export MEETING_CODE=4440247767
+export ROSTER=/workspace/app/roster.csv
+export INTERVAL=180
+export MANUAL_INTERVAL=30
+export OPEN_INTERVAL=180
+export AUTO_INTERVAL=1800
+# 关闭自动刷新请改为 0（纯手动）；开启自动刷新请改为 1
+export AUTO_REFRESH=0
+exec python3 /workspace/app/meeting_dashboard.py
